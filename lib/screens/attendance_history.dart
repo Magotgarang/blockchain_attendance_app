@@ -1,46 +1,81 @@
 import 'package:flutter/material.dart';
-import '../models/attendance_model.dart';
+import '../services/attendance_service.dart';
 
-class AttendanceHistory extends StatelessWidget {
-  final List<Attendance> attendanceList = [
-    Attendance(
-        studentName: "Andrew",
-        date: DateTime.now(),
-        isPresent: true,
-        transactionHash: "0x123abc"),
-    Attendance(
-        studentName: "Magot",
-        date: DateTime.now(),
-        isPresent: false,
-        transactionHash: "0x123abc"),
-  ];
+class AttendanceHistory extends StatefulWidget {
+  const AttendanceHistory({Key? key}) : super(key: key);
+
+  @override
+  State<AttendanceHistory> createState() => _AttendanceHistoryState();
+}
+
+class _AttendanceHistoryState extends State<AttendanceHistory> {
+  List attendanceList = [];
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAttendance();
+  }
+
+  // Load attendance records from blockchain
+  Future<void> _loadAttendance() async {
+    setState(() {
+      _loading = true;
+    });
+    final list = await attendanceService.getAttendanceBlockchain();
+    setState(() {
+      attendanceList = list
+          .map((att) => {
+                'name': att.studentName,
+                'isPresent': att.isPresent,
+                'date': att.date,
+                'txHash': att.txHash,
+              })
+          .toList();
+      _loading = false;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-          title: Text("Attendance History"),
-          backgroundColor: Colors.blueAccent),
       backgroundColor: Colors.blue[50],
-      body: ListView.builder(
-        padding: EdgeInsets.all(16),
-        itemCount: attendanceList.length,
-        itemBuilder: (context, index) {
-          final att = attendanceList[index];
-          return Card(
-            color: Colors.white,
-            elevation: 4,
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            child: ListTile(
-              title: Text(att.studentName),
-              subtitle:
-                  Text("${att.date.toLocal()} - Present: ${att.isPresent}"),
-              trailing: Text(att.transactionHash ?? "-"),
-            ),
-          );
-        },
+      appBar: AppBar(
+        title: const Text("Attendance History"),
+        backgroundColor: Colors.green,
       ),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : Padding(
+              padding: const EdgeInsets.all(16),
+              child: ListView.builder(
+                itemCount: attendanceList.length,
+                itemBuilder: (context, index) {
+                  final att = attendanceList[index];
+                  return Card(
+                    elevation: 4,
+                    color: Colors.white,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                    child: ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: Colors.green,
+                        child: Text(att['name'][0].toUpperCase()),
+                      ),
+                      title: Text(att['name']),
+                      subtitle: Text(
+                          "Status: ${att['isPresent'] ? 'Present' : 'Absent'}\nDate: ${att['date']}"),
+                      isThreeLine: true,
+                      trailing: Icon(
+                        Icons.check_circle,
+                        color: att['isPresent'] ? Colors.green : Colors.red,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
     );
   }
 }

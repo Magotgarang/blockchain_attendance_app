@@ -1,69 +1,106 @@
 import 'package:flutter/material.dart';
-import '../models/attendance_model.dart';
-import '../services/wallet_service.dart';
+import '../services/attendance_service.dart';
 
 class MarkAttendance extends StatefulWidget {
+  const MarkAttendance({Key? key}) : super(key: key);
+
   @override
-  _MarkAttendanceState createState() => _MarkAttendanceState();
+  State<MarkAttendance> createState() => _MarkAttendanceState();
 }
 
 class _MarkAttendanceState extends State<MarkAttendance> {
-  List<Attendance> students = [
-    Attendance(studentName: "Andrew", date: DateTime.now(), isPresent: true),
-    Attendance(studentName: "Magot", date: DateTime.now(), isPresent: true),
-    Attendance(studentName: "Alier", date: DateTime.now(), isPresent: true),
-    Attendance(studentName: "Majur", date: DateTime.now(), isPresent: true),
-    Attendance(studentName: "Guut", date: DateTime.now(), isPresent: true),
-    Attendance(studentName: "David", date: DateTime.now(), isPresent: true),
-    Attendance(studentName: "Samuel", date: DateTime.now(), isPresent: true),
-    Attendance(studentName: "Barnabas", date: DateTime.now(), isPresent: true),
-    Attendance(studentName: "Kon", date: DateTime.now(), isPresent: true),
-  ];
+  late List<Attendance> studentsAttendance = [];
+  bool isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    loadStudents();
+  }
+
+  // Load students from blockchain
+  Future<void> loadStudents() async {
+    setState(() {
+      isLoading = true;
+    });
+
+    final students = await attendanceService.getStudentsBlockchain();
+
+    setState(() {
+      studentsAttendance = students
+          .map((s) => Attendance(
+                studentName: s.name,
+                isPresent: true,
+                date: DateTime.now(),
+                txHash: "",
+              ))
+          .toList();
+      isLoading = false;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.blue[50],
       appBar: AppBar(
-        title: Text("Mark Attendance"),
+        title: const Text("Mark Attendance"),
         backgroundColor: Colors.blueAccent,
       ),
       body: Padding(
-        padding: EdgeInsets.all(16),
-        child: ListView.builder(
-          itemCount: students.length,
-          itemBuilder: (context, index) {
-            return Card(
-              elevation: 4,
-              color: Colors.white,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
-              child: ListTile(
-                leading: CircleAvatar(
-                  backgroundColor: Colors.orangeAccent,
-                  child: Text(students[index].studentName[0]),
-                ),
-                title: Text(students[index].studentName),
-                trailing: Checkbox(
-                  value: students[index].isPresent,
-                  onChanged: (val) {
-                    setState(() {
-                      students[index].isPresent = val!;
-                    });
-                  },
-                ),
+        padding: const EdgeInsets.all(16),
+        child: isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : ListView.builder(
+                itemCount: studentsAttendance.length,
+                itemBuilder: (context, index) {
+                  return Card(
+                    elevation: 4,
+                    color: Colors.white,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                    child: ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: Colors.orangeAccent,
+                        child: Text(
+                          studentsAttendance[index].studentName[0],
+                        ),
+                      ),
+                      title: Text(studentsAttendance[index].studentName),
+                      trailing: Checkbox(
+                        value: studentsAttendance[index].isPresent,
+                        onChanged: (val) {
+                          setState(() {
+                            studentsAttendance[index].isPresent = val!;
+                          });
+                        },
+                      ),
+                    ),
+                  );
+                },
               ),
-            );
-          },
-        ),
       ),
       floatingActionButton: FloatingActionButton(
         backgroundColor: Colors.orange,
-        child: Icon(Icons.send),
+        child: const Icon(Icons.send),
         onPressed: () async {
-          String txHash = await WalletService.storeAttendance(students);
+          setState(() {
+            isLoading = true;
+          });
+
+          // Mark attendance on blockchain
+          for (var att in studentsAttendance) {
+            await attendanceService.markAttendanceBlockchain(
+                att.studentName, att.isPresent);
+          }
+
+          setState(() {
+            isLoading = false;
+          });
+
           ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text("Attendance stored! Tx: $txHash")));
+            const SnackBar(content: Text("Attendance stored successfully!")),
+          );
         },
       ),
     );

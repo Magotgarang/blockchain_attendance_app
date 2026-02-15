@@ -1,13 +1,15 @@
+// lib/models/attendance_model.dart
+
 class Attendance {
-  String studentName;
+  final String studentName;
   bool isPresent;
-  DateTime date;
-  String? transactionHash; // for blockchain
+  final DateTime date;
+  final String transactionHash;
 
   Attendance({
     required this.studentName,
-    required this.isPresent,
+    this.isPresent = true,
     required this.date,
-    this.transactionHash,
+    this.transactionHash = "",
   });
 }
