@@ -1,73 +1,76 @@
 import 'package:flutter/material.dart';
-import '../screens/mark_attendance.dart';
-import '../screens/attendance_history.dart';
+import '../models/attendance_model.dart';
+import '../services/contract_service.dart';
 
-class StudentDashboard extends StatelessWidget {
-  final List<Map<String, String>> students = [
-    {"name": "Andrew", "image": "assets/avatar.png"},
-    {"name": "Magot", "image": "assets/avatar.png"},
-    {"name": "Alier", "image": "assets/avatar.png"},
-    {"name": "Majur", "image": "assets/avatar.png"},
-    {"name": "Guut", "image": "assets/avatar.png"},
-    {"name": "David", "image": "assets/avatar.png"},
-    {"name": "Samuel", "image": "assets/avatar.png"},
-    {"name": "Barnabas", "image": "assets/avatar.png"},
-    {"name": "Kon", "image": "assets/avatar.png"},
-  ];
+class StudentDashboard extends StatefulWidget {
+  const StudentDashboard({super.key});
+
+  @override
+  _StudentDashboardState createState() => _StudentDashboardState();
+}
+
+class _StudentDashboardState extends State<StudentDashboard> {
+  final ContractService contractService = ContractService();
+  List<Attendance> students = [];
+  bool isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    loadStudents();
+  }
+
+  Future<void> loadStudents() async {
+    await contractService.init();
+    final count = await contractService.studentCount();
+    List<Attendance> loaded = [];
+
+    for (int i = 0; i < count; i++) {
+      final studentRes = await contractService.getStudent(i);
+      final studentName = studentRes[1] as String;
+
+      final attendanceRes = await contractService.getAttendance(i);
+      bool isPresent = (attendanceRes.isNotEmpty) ? attendanceRes.last : false;
+
+      loaded.add(Attendance(
+        studentName: studentName,
+        date: DateTime.now(),
+        isPresent: isPresent,
+      ));
+    }
+
+    setState(() {
+      students = loaded;
+      isLoading = false;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text("Student Dashboard"),
+        title: const Text("Student Dashboard"),
         backgroundColor: Colors.greenAccent.shade700,
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: GridView.builder(
-          itemCount: students.length,
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2,
-            childAspectRatio: 3 / 2,
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-          ),
-          itemBuilder: (context, index) {
-            final student = students[index];
-            return GestureDetector(
-              onTap: () {
-                Navigator.pushNamed(context, '/markAttendance');
+      body: isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: students.length,
+              itemBuilder: (context, index) {
+                final student = students[index];
+                return Card(
+                  elevation: 4,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                  child: ListTile(
+                    title: Text(student.studentName),
+                    subtitle: Text(
+                        "Present: ${student.isPresent} on ${student.date.toLocal()}"),
+                  ),
+                );
               },
-              child: Card(
-                elevation: 4,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16)),
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [Colors.green.shade200, Colors.green.shade50],
-                    ),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      CircleAvatar(
-                        radius: 30,
-                        backgroundImage: AssetImage(student["image"]!),
-                      ),
-                      SizedBox(height: 12),
-                      Text(student["name"]!,
-                          style: TextStyle(
-                              fontSize: 16, fontWeight: FontWeight.bold)),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          },
-        ),
-      ),
+            ),
     );
   }
 }
