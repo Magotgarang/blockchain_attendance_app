@@ -1,13 +1,13 @@
 class Attendance {
   String studentName;
   bool isPresent;
-  DateTime date;
+  DateTime? date; // nullable now
   String? transactionHash; // for blockchain
 
   Attendance({
     required this.studentName,
     required this.isPresent,
-    required this.date,
+    this.date, // can be null
     this.transactionHash,
   });
 }

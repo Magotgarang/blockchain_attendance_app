@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/attendance_model.dart';
 import '../services/contract_service.dart';
+import 'package:web3dart/web3dart.dart';
 
 class AttendanceHistory extends StatefulWidget {
   const AttendanceHistory({super.key});
@@ -26,17 +27,29 @@ class _AttendanceHistoryState extends State<AttendanceHistory> {
     List<Attendance> loaded = [];
 
     for (int i = 0; i < count; i++) {
-      final studentRes = await contractService.getStudent(i);
-      final studentName = studentRes[1] as String;
+      final studentRes = await contractService.getStudent(i + 1);
+      final studentName = studentRes[0] as String;
+      final walletAddress = (studentRes[1] as EthereumAddress).hex;
 
-      final attendanceRes = await contractService.getAttendance(i);
-      bool isPresent = (attendanceRes.isNotEmpty) ? attendanceRes.last : false;
+      final attendanceRes = await contractService.getAttendance(i + 1);
+      final dates = attendanceRes[0] as List<dynamic>;
+      final statuses = attendanceRes[1] as List<dynamic>;
+
+      DateTime? date;
+      bool isPresent = false;
+
+      if (dates.isNotEmpty && statuses.isNotEmpty) {
+        final lastIndex = dates.length - 1;
+        date = DateTime.fromMillisecondsSinceEpoch(
+            (dates[lastIndex] as BigInt).toInt() * 1000);
+        isPresent = statuses[lastIndex] as bool;
+      }
 
       loaded.add(Attendance(
         studentName: studentName,
-        date: DateTime.now(),
+        date: date,
         isPresent: isPresent,
-        transactionHash: "", // Optional: store tx hash if needed
+        transactionHash: walletAddress,
       ));
     }
 
@@ -68,9 +81,20 @@ class _AttendanceHistoryState extends State<AttendanceHistory> {
                       borderRadius: BorderRadius.circular(12)),
                   child: ListTile(
                     title: Text(att.studentName),
-                    subtitle: Text(
-                        "${att.date.toLocal()} - Present: ${att.isPresent}"),
-                    trailing: Text(att.transactionHash ?? "-"),
+                    subtitle: Text(att.date != null
+                        ? "Date: ${att.date!.toLocal().toString().split('.')[0]}"
+                        : "No record yet"),
+                    trailing: att.date != null
+                        ? Icon(
+                            att.isPresent ? Icons.check_circle : Icons.cancel,
+                            color: att.isPresent ? Colors.green : Colors.red,
+                            size: 28,
+                          )
+                        : const Icon(
+                            Icons.remove_circle_outline,
+                            color: Colors.grey,
+                            size: 28,
+                          ),
                   ),
                 );
               },

@@ -6,7 +6,7 @@ class MarkAttendance extends StatefulWidget {
   const MarkAttendance({super.key});
 
   @override
-  _MarkAttendanceState createState() => _MarkAttendanceState();
+  State<MarkAttendance> createState() => _MarkAttendanceState();
 }
 
 class _MarkAttendanceState extends State<MarkAttendance> {
@@ -21,45 +21,80 @@ class _MarkAttendanceState extends State<MarkAttendance> {
   }
 
   Future<void> initContract() async {
-    await contractService.init();
-    await loadStudents();
+    try {
+      await contractService.init();
+      await loadStudents();
+    } catch (e) {
+      print("Contract initialization error: $e");
+      setState(() {
+        isLoading = false;
+      });
+    }
   }
 
+  // ✅ Corrected loadStudents for your smart contract
   Future<void> loadStudents() async {
-    final count = await contractService.studentCount();
-    List<Attendance> loadedStudents = [];
+    try {
+      final count = await contractService.studentCount();
+      List<Attendance> loadedStudents = [];
 
-    for (int i = 0; i < count; i++) {
-      final res = await contractService.getStudent(i);
-      final studentName = res[1] as String;
-      loadedStudents.add(
-        Attendance(
-            studentName: studentName, date: DateTime.now(), isPresent: true),
-      );
+      // IDs start from 1 in your contract
+      for (int i = 1; i <= count; i++) {
+        final res = await contractService.getStudent(i);
+
+        // res[0] = name, res[1] = wallet (EthereumAddress)
+        String studentName = res[0];
+
+        loadedStudents.add(
+          Attendance(
+            studentName: studentName,
+            date: DateTime.now(),
+            isPresent: true,
+          ),
+        );
+      }
+
+      setState(() {
+        students = loadedStudents;
+        isLoading = false;
+      });
+    } catch (e) {
+      print("Load students error: $e");
+      setState(() {
+        isLoading = false;
+      });
     }
-
-    setState(() {
-      students = loadedStudents;
-      isLoading = false;
-    });
   }
 
   Future<void> submitAttendance() async {
-    setState(() {
-      isLoading = true;
-    });
+    try {
+      setState(() {
+        isLoading = true;
+      });
 
-    for (int i = 0; i < students.length; i++) {
-      await contractService.markAttendance(i, students[i].isPresent);
+      for (int i = 0; i < students.length; i++) {
+        await contractService.markAttendance(i + 1, students[i].isPresent);
+        // i+1 because smart contract IDs start from 1
+      }
+
+      setState(() {
+        isLoading = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Attendance stored on blockchain!")),
+      );
+    } catch (e) {
+      print("Submit attendance error: $e");
+
+      setState(() {
+        isLoading = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Error storing attendance")),
+      );
     }
-
-    setState(() {
-      isLoading = false;
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Attendance stored on blockchain!")),
-    );
   }
 
   @override
@@ -72,35 +107,49 @@ class _MarkAttendanceState extends State<MarkAttendance> {
       ),
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
-          : Padding(
-              padding: const EdgeInsets.all(16),
-              child: ListView.builder(
-                itemCount: students.length,
-                itemBuilder: (context, index) {
-                  return Card(
-                    elevation: 4,
-                    color: Colors.white,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
-                    child: ListTile(
-                      leading: CircleAvatar(
-                        backgroundColor: Colors.orangeAccent,
-                        child: Text(students[index].studentName[0]),
-                      ),
-                      title: Text(students[index].studentName),
-                      trailing: Checkbox(
-                        value: students[index].isPresent,
-                        onChanged: (val) {
-                          setState(() {
-                            students[index].isPresent = val!;
-                          });
-                        },
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
+          : students.isEmpty
+              ? const Center(
+                  child: Text(
+                    "No students found",
+                    style: TextStyle(fontSize: 18),
+                  ),
+                )
+              : Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: ListView.builder(
+                    itemCount: students.length,
+                    itemBuilder: (context, index) {
+                      final student = students[index];
+
+                      return Card(
+                        elevation: 4,
+                        color: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: ListTile(
+                          leading: CircleAvatar(
+                            backgroundColor: Colors.orangeAccent,
+                            child: Text(
+                              student.studentName.isNotEmpty
+                                  ? student.studentName[0]
+                                  : "?",
+                            ),
+                          ),
+                          title: Text(student.studentName),
+                          trailing: Checkbox(
+                            value: student.isPresent,
+                            onChanged: (val) {
+                              setState(() {
+                                student.isPresent = val ?? false;
+                              });
+                            },
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
       floatingActionButton: FloatingActionButton(
         backgroundColor: Colors.orange,
         child: const Icon(Icons.send),
